@@ -5,11 +5,10 @@ variables:
 resources:
   repositories:
   - repository: self
-  - repository: dfc-devops
+  - repository: master-dfc-devops
     type: github
-    name: SkillsFundingAgency/dfc-devops
-    ref: refs/tags/v1.3.0
-    endpoint: 'GitHub (ESFA)'
+    name: trivedihimanshu/dfc-devops
+    endpoint: 'trivedihimanshu'
 
 jobs:
 
