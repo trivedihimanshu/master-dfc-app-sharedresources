@@ -1,0 +1,811 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "apimResourceGroup": {
+            "type": "string"
+        },
+        "apimServiceName": {
+            "type": "string"
+        },
+        "aseHostingEnvironmentName": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "aseOutboundIpAddress": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "aseResourceGroup": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "aspInstances": {
+            "type": "int"
+        },
+        "aspSize": {
+            "type": "string"
+        },
+        "aspTier": {
+            "type": "string"
+        },
+        "cosmosDbName": {
+            "type": "string"
+        },
+        "environment": {
+            "type": "string"
+        },
+        "jobprofileDatabaseNeedsCreation": {
+            "type": "bool"
+        },
+        "jobprofileDatabaseOfferThroughput": {
+            "type": "int"
+        },
+        "serviceBusFirewallIpAddresses": {
+            "type": "array",
+            "metadata": {
+                "description": "An array of IP addresses that will be added to the list of ServiceBus IP filters.  These are in addition to the defaults and aseOutboundIpAddress."
+            },
+            "defaultValue": []
+        },
+        "slackWebHookToken": {
+            "type": "securestring",
+            "metadata": {
+                "description": "the token (everything after https://hooks.slack.com/services/) for an incoming webhook in slack"
+            }
+        },
+        "slackChannelForAlerts": {
+            "type": "string",
+            "metadata": {
+                "description": "The slack channel to send alerts to"
+            }
+        },
+        "emailAddressForAlerts": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "An email address to send alerts to"
+            }
+        },
+        "enableAlerts": {
+            "type": "bool",
+            "metadata": {
+                "description": "Enable or disable alerting"
+            }
+        },
+        "activeMessagesAlertThreshold": {
+            "type": "string",
+            "defaultValue": "1000",
+            "metadata": {
+                "description": "The threshold of active messages in a topic that causes alerts to fire"
+            }
+        },
+        "deadLetterMessagesAlertThreshold": {
+            "type": "string",
+            "defaultValue": "1000",
+            "metadata": {
+                "description": "The threshold of active messages in a topic that causes alerts to fire"
+            }
+        }
+    },
+    "variables": {
+        "productionEnvironment": "[contains(createArray('OAT', 'PP', 'PRD'), parameters('Environment'))]",
+        "appServicePlanName": "[concat(variables('ResourcePrefix'), '-asp')]",
+        "allowedIpAddresses": "[createArray('104.42.195.92','40.76.54.131','52.176.6.30','52.169.50.45','52.187.184.26', parameters('aseOutboundIpAddress'))]",
+        "serviceBusAllowedIpAddresses": "[concat(variables('allowedIpAddresses'), parameters('serviceBusFirewallIpAddresses'))]",
+        "deploymentUrlBase": "https://raw.githubusercontent.com/SkillsFundingAgency/dfc-devops/master/ArmTemplates/",
+        "resourcePrefix": "[tolower(concat('dfc-', parameters('environment'), '-app-sharedresources'))]",
+        "servicebusName": "[concat(variables('ResourcePrefix'), '-ns')]",
+        "servicebusSku": "[if(variables('productionEnvironment'), 'Premium', 'Standard')]",
+        "storageAccountName": "[tolower(concat('dfc', parameters('environment'), 'appsharedstr'))]",
+        "apimJobProfilesProductDisplayName": "Job Profiles",
+        "addDevelopersGroupToJPProduct": "[equals(tolower(parameters('environment')), 'oat')]",
+        "MonitoringAppServicePlanName": "[concat(variables('ResourcePrefix'), '-mon-asp')]",
+        "MonitoringAppInsightsName": "[concat(variables('ResourcePrefix'), '-mon-ai')]",
+        "MonitoringFunctionAppName": "[concat(variables('ResourcePrefix'), '-mon-fa')]",
+        "ActionGroupName": "[concat(variables('ResourcePrefix'), '-actgrp')]",
+        "TopicsToCreate": [
+            "cms-messages",
+            "cms-messages-draft",
+            "job-profile-refresh",
+            "job-profile-refresh-draft"
+        ]
+    },
+    "functions": [
+        {
+            "namespace": "dfc",
+            "members": {
+                "truncateDeploymentName": {
+                    "parameters": [
+                        {
+                            "name": "deploymentName",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "string",
+                        "value": "[skip(parameters('deploymentName'), sub(length(parameters('deploymentName')),64))]"
+                    }
+                }
+            }
+        }
+    ],
+    "resources": [
+        {
+            "apiVersion": "2017-05-10",
+            "name": "[variables('AppServicePlanName')]",
+            "type": "Microsoft.Resources/deployments",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'), 'app-service-plan.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "appServicePlanName": {
+                        "value": "[variables('appServicePlanName')]"
+                    },
+                    "aseHostingEnvironmentName": {
+                        "value": "[parameters('aseHostingEnvironmentName')]"
+                    },
+                    "aseResourceGroup": {
+                        "value": "[parameters('aseResourceGroup')]"
+                    },
+                    "aspSize": {
+                        "value": "[parameters('aspSize')]"
+                    },
+                    "aspInstances": {
+                        "value": "[parameters('aspInstances')]"
+                    },
+                    "nonASETier": {
+                        "value": "[parameters('aspTier')]"
+                    }
+                }
+            }
+        },
+        {
+            "name": "appSharedCosmosAccount",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'),'cosmos-db.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "cosmosDbName": {
+                        "value": "[parameters('cosmosDbName')]"
+                    },
+                    "cosmosApiType": {
+                        "value": "SQL"
+                    },
+                    "defaultConsistencyLevel": {
+                        "value": "Strong"
+                    },
+                    "additionalIpAddresses": {
+                        "value": "[parameters('aseOutboundIpAddress')]"
+                    },
+                    "allowConnectionsFromAzureDataCenters": {
+                        "value": false
+                    }
+                }
+            }
+        },
+        {
+            "name": "appSharedCosmosDatabase",
+            "type": "Microsoft.Resources/deployments",
+            "dependsOn": [
+                "appSharedCosmosAccount"
+            ],
+            "apiVersion": "2017-05-10",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'),'CosmosDb/cosmos-database.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "accountName": {
+                        "value": "[parameters('cosmosDbName')]"
+                    },
+                    "databaseName": {
+                        "value": "dfc-app-jobprofiles"
+                    },
+                    "useSharedRequestUnits": {
+                        "value": true
+                    },
+                    "offerThroughput": {
+                        "value": "[parameters('jobprofileDatabaseOfferThroughput')]"
+                    },
+                    "databaseNeedsCreation": {
+                        "value": "[parameters('jobprofileDatabaseNeedsCreation')]"
+                    }
+                }
+            }
+        },
+        {
+            "name": "appSharedServiceBus",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'),'servicebus-namespace.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "serviceBusNamespaceName": {
+                        "value": "[variables('servicebusName')]"
+                    },
+                    "serviceBusSku": {
+                        "value": "[variables('servicebusSku')]"
+                    }
+                }
+            }
+        },
+        {
+            "name": "[concat('appSharedServiceBusIpFilters-', copyIndex())]",
+            "type": "Microsoft.Resources/deployments",
+            "condition": "[greater(length(parameters('aseOutboundIpAddress')), 0)]",
+            "apiVersion": "2017-05-10",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'),'ServiceBus/servicebus-ipfilter.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "action": {
+                        "value": "Accept"
+                    },
+                    "ipAddress": {
+                        "value": "[variables('serviceBusAllowedIpAddresses')[copyIndex()]]"
+                    },
+                    "servicebusName": {
+                        "value": "[variables('servicebusName')]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "appSharedServiceBus"
+            ],
+             "copy": {
+                 "name": "ipFilterRuleCopy",
+                 "count": "[length(variables('serviceBusAllowedIpAddresses'))]"
+             }
+        },
+        {
+            "name": "appSharedStorageAccount",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'),'storage-account.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "storageAccountName": {
+                        "value": "[variables('storageAccountName')]"
+                    }
+                }
+            }
+        },
+        {
+            "apiVersion": "2017-05-10",
+            "name": "[variables('TopicsToCreate')[copyIndex()]]",
+            "type": "Microsoft.Resources/deployments",
+            "dependsOn": [
+                "appSharedServiceBus"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'), 'ServiceBus/servicebus-topic.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "serviceBusNamespaceName": {
+                        "value": "[variables('serviceBusName')]"
+                    },
+                    "serviceBusTopicName": {
+                        "value": "[variables('TopicsToCreate')[copyIndex()]]"
+                    }
+                }
+            },
+            "copy": {
+                "name": "topicCopy",
+                "count": "[length(variables('TopicsToCreate'))]"
+            }
+        },
+        {
+            "apiVersion": "2017-05-10",
+            "name": "[concat('monitor-', variables('TopicsToCreate')[copyIndex()])]",
+            "type": "Microsoft.Resources/deployments",
+            "condition": "[not(variables('productionEnvironment'))]",
+            "dependsOn": [
+                "appSharedServiceBus",
+                "topicCopy"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'), 'ServiceBus/servicebus-topic-authrule.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "authorizationRuleName": {
+                        "value": "[concat('monitor-', variables('TopicsToCreate')[copyIndex()])]"
+                    },
+                    "topicName": {
+                        "value": "[variables('TopicsToCreate')[copyIndex()]]"
+                    },
+                    "rights": {
+                        "value": [
+                            "manage",
+                            "send",
+                            "listen"
+                        ]
+                    },
+                    "servicebusName": {
+                        "value": "[variables('serviceBusName')]"
+                    }
+                }
+            },
+            "copy": {
+                "name": "topicAuthRuleCopy",
+                "count": "[length(variables('TopicsToCreate'))]"
+            }
+        },
+        {
+            "name": "jobprofiles-apim-logger",
+            "type": "Microsoft.Resources/deployments",
+            "resourceGroup": "[parameters('apimResourceGroup')]",
+            "apiVersion": "2017-05-10",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'), 'APIM/apim-logger.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "apimServiceName": {
+                        "value": "[parameters('apimServiceName')]"
+                    },
+                    "productDisplayName": {
+                        "value": "[variables('apimJobProfilesProductDisplayName')]"
+                    }
+                }
+            }
+        },
+        {
+            "name": "jobprofiles-apim-product",
+            "type": "Microsoft.Resources/deployments",
+            "resourceGroup": "[parameters('apimResourceGroup')]",
+            "apiVersion": "2017-05-10",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'), 'APIM/apim-product.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "allowAnonymousAccess": {
+                        "value": false
+                    },
+                    "addDevelopers": {
+                        "value": "[variables('addDevelopersGroupToJPProduct')]"
+                    },
+                    "apimServiceName": {
+                        "value": "[parameters('apimServiceName')]"
+                    },
+                    "productDisplayName": {
+                        "value": "[variables('apimJobProfilesProductDisplayName')]"
+                    },
+                    "productDescription": {
+                        "value": "By clicking confirm, you are agreeing to the conditions in the Code Of Connection"
+                    },
+                    "productTerms": {
+                        "value": "By subscribing to this API, you are agreeing to the conditions in the Code Of Connection" 
+                    }
+                }
+            }
+        },
+        {
+            "name": "[variables('MonitoringAppServicePlanName')]",
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2018-02-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "name": "[variables('MonitoringAppServicePlanName')]",
+                "computeMode": "Dynamic"
+            },
+            "sku": {
+                "name":"Y1",
+                "tier":"Dynamic"
+            }
+        },
+        {
+            "apiVersion": "2015-05-01",
+            "name": "[variables('MonitoringAppInsightsName')]",
+            "type": "Microsoft.Insights/components",
+            "location": "[resourceGroup().location]",
+            "kind": "web",
+            "tags": {
+                "[concat('hidden-link:', resourceId('Microsoft.Web/sites', variables('MonitoringAppInsightsName')))]": "Resource"
+            },
+            "properties": {
+                "Application_Type": "web"
+            }
+        },
+        {
+            "name": "[variables('MonitoringFunctionAppName')]",
+            "apiVersion": "2018-11-01",
+            "type": "Microsoft.Web/sites",
+            "location": "[resourceGroup().location]",
+            "kind": "functionapp",
+            "dependsOn": [
+                "[variables('MonitoringAppServicePlanName')]",
+                "[variables('MonitoringAppInsightsName')]"
+            ],
+            "properties": {
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(concat('microsoft.insights/components/', variables('MonitoringAppInsightsName'))).InstrumentationKey]"
+                        },
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[reference('appSharedStorageAccount').outputs.storageConnectionString.value]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[reference('appSharedStorageAccount').outputs.storageConnectionString.value]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[variables('MonitoringFunctionAppName')]"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "powershell"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~2"
+                        },
+                        {
+                            "name": "SlackToken",
+                            "value": "[parameters('slackWebHookToken')]"
+                        },
+                        {
+                            "name": "MSDEPLOY_RENAME_LOCKED_FILES",
+                            "value": "1"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "[variables('ActionGroupName')]",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2019-05-01",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'), 'Application-Insights/action-groups.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "actionGroupName": {
+                        "value": "[variables('ActionGroupName')]"
+                    },
+                    "enabled": {
+                        "value": "[parameters('enableAlerts')]"
+                    },
+                    "webHookUrl": {
+                        "value": "[concat('https://', variables('MonitoringFunctionAppName'), '.azurewebsites.net/api/MonitorAlert?code=', listkeys(concat(resourceId('Microsoft.Web/sites', variables('MonitoringFunctionAppName')), '/host/default'), '2018-11-01').functionKeys.default, '&channel=', parameters('slackChannelForAlerts'))]"
+                    },
+                    "emailAddress": {
+                        "value": "[parameters('emailAddressForAlerts')]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[variables('MonitoringFunctionAppName')]"
+            ]
+        },
+        {
+            "apiVersion": "2019-05-01",
+            "name": "[concat(variables('AppServicePlanName'), '-CPUPercentage')]",
+            "type": "Microsoft.Resources/deployments",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'), 'Application-Insights/metric-alerts.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "enabled": {
+                        "value": "[parameters('enableAlerts')]"
+                    },
+                    "alertName": {
+                        "value": "[concat(variables('AppServicePlanName'), '-metric-CPUPercentage')]"
+                    },
+                    "alertSeverity": {
+                        "value": 3
+                    },
+                    "metricName": {
+                        "value": "CpuPercentage"
+                    },
+                    "operator": {
+                        "value": "GreaterThanOrEqual"
+                    },
+                    "threshold": {
+                        "value": "75"
+                    },
+                    "aggregation": {
+                        "value": "Average"
+                    },
+                    "windowSize": {
+                        "value": "PT5M"
+                    },
+                    "evaluationFrequency": {
+                        "value": "PT1M"
+                    },
+                    "actionGroupName": {
+                        "value": "[variables('ActionGroupName')]"
+                    },
+                    "resourceId": {
+                        "value": "[resourceId('Microsoft.Web/serverFarms', variables('AppServicePlanName'))]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[variables('ActionGroupName')]",
+                "[variables('AppServicePlanName')]"
+            ]
+        },
+        {
+            "apiVersion": "2019-05-01",
+            "name": "[concat(variables('AppServicePlanName'), '-MemoryPercentage')]",
+            "type": "Microsoft.Resources/deployments",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'), 'Application-Insights/metric-alerts.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "enabled": {
+                        "value": "[parameters('enableAlerts')]"
+                    },
+                    "alertName": {
+                        "value": "[concat(variables('AppServicePlanName'), '-metric-MemoryPercentage')]"
+                    },
+                    "alertSeverity": {
+                        "value": 3
+                    },
+                    "metricName": {
+                        "value": "MemoryPercentage"
+                    },
+                    "operator": {
+                        "value": "GreaterThanOrEqual"
+                    },
+                    "threshold": {
+                        "value": "75"
+                    },
+                    "aggregation": {
+                        "value": "Average"
+                    },
+                    "windowSize": {
+                        "value": "PT5M"
+                    },
+                    "evaluationFrequency": {
+                        "value": "PT1M"
+                    },
+                    "actionGroupName": {
+                        "value": "[variables('ActionGroupName')]"
+                    },
+                    "resourceId": {
+                        "value": "[resourceId('Microsoft.Web/serverFarms', variables('AppServicePlanName'))]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[variables('ActionGroupName')]",
+                "[variables('AppServicePlanName')]"
+            ]
+        },
+        {
+            "apiVersion": "2019-05-01",
+            "name": "[concat(parameters('CosmosDbName'), '-Conflicts')]",
+            "type": "Microsoft.Resources/deployments",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'), 'Application-Insights/metric-alerts.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "enabled": {
+                        "value": "[parameters('enableAlerts')]"
+                    },
+                    "alertName": {
+                        "value": "[concat(parameters('CosmosDbName'), '-metric-conflicts')]"
+                    },
+                    "alertSeverity": {
+                        "value": 3
+                    },
+                    "metricName": {
+                        "value": "TotalRequestUnits"
+                    },
+                    "operator": {
+                        "value": "GreaterThan"
+                    },
+                    "threshold": {
+                        "value": "0"
+                    },
+                    "dimensions": {
+                        "value": [
+                            {
+                                "name": "StatusCode",
+                                "operator": "Include",
+                                "values": [ "429" ]
+                            }
+                        ]
+                    },
+                    "aggregation": {
+                        "value": "Average"
+                    },
+                    "windowSize": {
+                        "value": "PT5M"
+                    },
+                    "evaluationFrequency": {
+                        "value": "PT1M"
+                    },
+                    "actionGroupName": {
+                        "value": "[variables('ActionGroupName')]"
+                    },
+                    "resourceId": {
+                        "value": "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('CosmosDbName'))]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[variables('ActionGroupName')]",
+                "[variables('AppServicePlanName')]"
+            ]
+        },
+        {
+            "apiVersion": "2019-05-01",
+            "name": "[dfc.truncateDeploymentName(concat(variables('servicebusName'), '-', variables('TopicsToCreate')[copyIndex()],'-active-msgs'))]",
+            "type": "Microsoft.Resources/deployments",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'), 'Application-Insights/metric-alerts.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "enabled": {
+                        "value": "[parameters('enableAlerts')]"
+                    },
+                    "alertName": {
+                        "value": "[concat(variables('servicebusName'), '-', variables('TopicsToCreate')[copyIndex()],'-active-msgs')]"
+                    },
+                    "alertSeverity": {
+                        "value": 3
+                    },
+                    "metricName": {
+                        "value": "ActiveMessages"
+                    },
+                    "operator": {
+                        "value": "GreaterThan"
+                    },
+                    "threshold": {
+                        "value": "[parameters('activeMessagesAlertThreshold')]"
+                    },
+                    "dimensions": {
+                        "value": [
+                            {
+                                "name": "EntityName",
+                                "operator": "Include",
+                                "values": [ "[variables('TopicsToCreate')[copyIndex()]]" ]
+                            }
+                        ]
+                    },
+                    "aggregation": {
+                        "value": "Average"
+                    },
+                    "windowSize": {
+                        "value": "PT5M"
+                    },
+                    "evaluationFrequency": {
+                        "value": "PT1M"
+                    },
+                    "actionGroupName": {
+                        "value": "[variables('ActionGroupName')]"
+                    },
+                    "resourceId": {
+                        "value": "[resourceId('Microsoft.ServiceBus/namespaces', variables('servicebusName'))]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[variables('ActionGroupName')]",
+                "topicCopy"
+            ],
+            "copy": {
+                "name": "activeMessageAklertCopy",
+                "count": "[length(variables('TopicsToCreate'))]"
+            }
+        },
+        {
+            "apiVersion": "2019-05-01",
+            "name": "[dfc.truncateDeploymentName(concat(variables('servicebusName'), '-', variables('TopicsToCreate')[copyIndex()],'-dlq-msgs'))]",
+            "type": "Microsoft.Resources/deployments",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[concat(variables('deploymentUrlBase'), 'Application-Insights/metric-alerts.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "enabled": {
+                        "value": "[parameters('enableAlerts')]"
+                    },
+                    "alertName": {
+                        "value": "[concat(variables('servicebusName'), '-', variables('TopicsToCreate')[copyIndex()],'-dlq-msgs')]"
+                    },
+                    "alertSeverity": {
+                        "value": 3
+                    },
+                    "metricName": {
+                        "value": "DeadletteredMessages"
+                    },
+                    "operator": {
+                        "value": "GreaterThan"
+                    },
+                    "threshold": {
+                        "value": "[parameters('deadLetterMessagesAlertThreshold')]"
+                    },
+                    "dimensions": {
+                        "value": [
+                            {
+                                "name": "EntityName",
+                                "operator": "Include",
+                                "values": [ "[variables('TopicsToCreate')[copyIndex()]]" ]
+                            }
+                        ]
+                    },
+                    "aggregation": {
+                        "value": "Average"
+                    },
+                    "windowSize": {
+                        "value": "PT5M"
+                    },
+                    "evaluationFrequency": {
+                        "value": "PT1M"
+                    },
+                    "actionGroupName": {
+                        "value": "[variables('ActionGroupName')]"
+                    },
+                    "resourceId": {
+                        "value": "[resourceId('Microsoft.ServiceBus/namespaces', variables('servicebusName'))]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[variables('ActionGroupName')]",
+                "topicCopy"
+            ],
+            "copy": {
+                "name": "DeadLetterAlertCopy",
+                "count": "[length(variables('TopicsToCreate'))]"
+            }
+        }
+    ]
+}

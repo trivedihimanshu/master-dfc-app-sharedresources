@@ -1,0 +1,63 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "apimResourceGroup": {
+            "value": "__SharedResourceGroupName__"
+        },
+        "apimServiceName": {
+            "value": "__ApimServiceName__"
+        },
+        "aseHostingEnvironmentName": {
+            "value": "__AseServiceName__"
+        },
+        "aseOutboundIpAddress": {
+            "value": "__AseOutboundIpAddress__"
+        },
+        "aseResourceGroup": {
+            "value": "__aseResourceGroup__"
+        },
+        "aspInstances": {
+            "value": __AspInstances__
+        },
+        "aspSize": {
+            "value": "__AspSize__"
+        },
+        "aspTier": {
+            "value": "__AspTier__"
+        },
+        "cosmosDbName": {
+            "value": "__appSharedCosmosDBName__"
+        },
+        "environment": {
+            "value": "__ReleaseEnvironmentName__"
+        },
+        "jobprofileDatabaseNeedsCreation": {
+            "value": __CosmosDbDatabaseDoesntExist__
+        },
+        "jobprofileDatabaseOfferThroughput": {
+            "value": __JobprofileDatabaseOfferThroughput__
+        },
+        "serviceBusFirewallIpAddresses": {
+            "value": __serviceBusFirewallIpAddresses__
+        },
+        "slackWebHookToken": {
+            "value": "__slackWebhookToken__"
+        },
+        "slackChannelForAlerts": {
+            "value": "__slackChannelForAlerts__"
+        },
+        "emailAddressForAlerts": {
+            "value": "__emailAddressForAlerts__"
+        },
+        "enableAlerts": {
+            "value": __EnableAzureMonitorAlerting__
+        },
+        "activeMessagesAlertThreshold": {
+            "value": "__ActiveMessageAlertThreshold__"
+        },
+        "deadLetterMessagesAlertThreshold": {
+            "value": "__DeadLetterMessageAlertThreshold__"
+        }
+    }
+}

@@ -1,0 +1,39 @@
+variables:
+    ArmTemplateRoot: '$(Build.SourcesDirectory)\Resources\ArmTemplates' 
+    ApimPolicyRoot: '$(Build.SourcesDirectory)\Resources\ApimPolicies'
+
+resources:
+  repositories:
+  - repository: self
+  - repository: dfc-devops
+    type: github
+    name: SkillsFundingAgency/dfc-devops
+    ref: refs/tags/v1.3.0
+    endpoint: 'GitHub (ESFA)'
+
+jobs:
+
+- job: BuildAndTestArmTemplate
+  displayName: BuildAndTestArmTemplate
+  pool:
+    name: Continuous Integration 02 - SSD - 160ACU
+    demands:
+    - msbuild
+    - visualstudio
+
+  steps:
+  - template: AzureDevOpsTemplates/Build/dfc-arm-build.yml@dfc-devops
+    parameters:
+      ArmTemplateRoot: $(ArmTemplateRoot)
+
+  - task: CopyFiles@2
+    displayName: 'Copy APIM policies to staging'
+    inputs:
+      SourceFolder: $(ApimPolicyRoot)
+      TargetFolder: $(build.artifactstagingdirectory)/Azure/ApimPolicies
+
+  - task: PublishBuildArtifacts@1
+    displayName: Publish Artifact
+    inputs:
+      pathtoPublish: $(Build.ArtifactStagingDirectory)
+      artifactName: AzureResources

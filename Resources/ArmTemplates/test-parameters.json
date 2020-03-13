@@ -1,0 +1,48 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "apimResourceGroup": {
+            "value": "dfc-test-template-rg"
+        },
+        "apimServiceName": {
+            "value": "dfc-foo-shared-apim"
+        },
+        "aspInstances": {
+            "value": 2
+        },
+        "aspSize": {
+            "value": "1"
+        },
+        "aspTier": {
+            "value": "Standard"
+        },
+        "cosmosDbName": {
+            "value": "dfc-dev-app-sharedresources-cdb"
+        },
+        "environment": {
+            "value": "FOO"
+        },
+        "jobprofileDatabaseNeedsCreation": {
+            "value": false
+        },
+        "jobprofileDatabaseOfferThroughput": {
+            "value": 400
+        },
+        "serviceBusFirewallIpAddresses": {
+            "value": []
+        },
+        "slackWebhookToken": {
+            "value": "a-slack-token"
+        },
+        "slackChannelForAlerts": {
+            "value": "alerting-slack-channel"
+        },
+        "emailAddressForAlerts": {
+            "value": "test@test.com"
+        },
+        "enableAlerts": {
+            "value": false
+        }
+    }
+}
