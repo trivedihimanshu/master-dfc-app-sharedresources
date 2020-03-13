@@ -20,8 +20,8 @@ jobs:
 - job: BuildAndTestArmTemplate
   displayName: BuildAndTestArmTemplate
   pool:
-    name: Continuous Integration 02 - SSD - 160ACU
-    demands:
+  vmImage: 'windows-latest'
+      demands:
     - msbuild
     - visualstudio
 
