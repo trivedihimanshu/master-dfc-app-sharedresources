@@ -8,6 +8,13 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
+resources:
+  repositories:
+  - repository: master-dfc-devops
+    type: github
+    name: trivedihimanshu/master-dfc-devops
+    endpoint: trivedihimanshu
+
 jobs:
 
 - job: BuildAndTestArmTemplate
