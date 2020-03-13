@@ -10,7 +10,7 @@ pool:
 
 resources:
   repositories:
-  - repository: master-dfc-devops
+  - repository: trivedihimanshu/master-dfc-devops
     type: github
     name: trivedihimanshu/master-dfc-devops
     endpoint: trivedihimanshu
