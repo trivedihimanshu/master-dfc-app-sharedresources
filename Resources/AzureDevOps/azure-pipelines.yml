@@ -2,12 +2,6 @@ variables:
     ArmTemplateRoot: '$(Build.SourcesDirectory)\Resources\ArmTemplates' 
     ApimPolicyRoot: '$(Build.SourcesDirectory)\Resources\ApimPolicies'
 
-resources:
-  repositories:
-  - repository: master-dfc-devops
-    type: github
-    name: trivedihimanshu/master-dfc-devops
-    endpoint: 'trivedihimanshu'
 
 jobs:
 
