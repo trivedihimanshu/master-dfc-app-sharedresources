@@ -21,7 +21,7 @@ jobs:
     - visualstudio
 
   steps:
-  - template: AzureDevOpsTemplates/Build/dfc-arm-build.yml@dfc-devops
+  - template: AzureDevOpsTemplates/Build/dfc-arm-build.yml@master-dfc-devops
     parameters:
       ArmTemplateRoot: $(ArmTemplateRoot)
 
