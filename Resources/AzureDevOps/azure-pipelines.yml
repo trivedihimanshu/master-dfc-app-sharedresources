@@ -34,7 +34,7 @@ jobs:
     displayName: 'Copy APIM policies to staging'
     inputs:
       SourceFolder: $(ApimPolicyRoot)
-      TargetFolder: $(build.artifactstagingdirectory)/Azure/ApimPolicies
+      TargetFolder: $(Build.ArtifactStagingDirectory)/Azure/ApimPolicies
 
   - task: PublishBuildArtifacts@1
     displayName: Publish Artifact
